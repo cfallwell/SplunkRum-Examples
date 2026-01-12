@@ -58,6 +58,10 @@ npm pack
 import { SplunkRumProvider, RumRouterTracker, useEnableReplayPersist } from "rumbootstrap";
 ```
 
+## Configuration defaults
+
+The library ships with a minimal default config so it can bootstrap without app input. For real usage, provide your own app-specific values via `configOverride` (for example, in a `rum.config.ts` file like the demo). This avoids editing the library source and removes the need to customize the scripts directly. The demo config is intentionally separate so teams can manage realm/token/environment per app and per environment.
+
 ## Version pinning
 
 This build pins both RUM and Session Recorder to v1.1.0 to avoid version mismatch with `latest`.
