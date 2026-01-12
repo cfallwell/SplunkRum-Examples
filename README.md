@@ -64,6 +64,20 @@ The recorder accepts these optional params:
 - `sensitivityRules` (array of rule objects)
 - `features` (object) with keys like `backgroundServiceSrc`, `canvas`, `video`, `iframes`, `packAssets`, `cacheAssets`
 
+URL-driven overrides in the MPA script (query params):
+
+- `replay=on|true` enables the recorder for the session.
+- `canvas=true|false`, `video=true|false`, `iframes=true|false`, `cacheAssets=true|false`
+- `assets=true|false` to toggle all `packAssets` entries.
+- `assetsStyles=true|false`, `assetsFonts=true|false`, `assetsImages=true|false` for per-asset control.
+- `backgroundServiceSrc=<url>` to set the background service worker URL.
+
+Complete example (comma-separated params are supported):
+
+```
+https://app.company.com/?replay=on,canvas=true,video=true,iframes=true,assets=true,assetsStyles=true,assetsFonts=true,assetsImages=true,cacheAssets=true,backgroundServiceSrc=https%3A%2F%2Fexample.xyz%2Fbackground-service.html
+```
+
 Turn on full-text and input capture:
 
 ```js
@@ -93,6 +107,9 @@ features: {
   cacheAssets: true
 }
 ```
+
+For additional configuration options, see the Splunk documentation:
+https://help.splunk.com/en/splunk-observability-cloud/monitor-end-user-experience/real-user-monitoring/replay-user-sessions/record-browser-sessions
 
 ## SPA and MPA usage without app code changes
 

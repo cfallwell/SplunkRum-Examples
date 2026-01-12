@@ -79,7 +79,9 @@
       // Example object:
       // packAssets: { fonts: true, images: true, styles: true }
       packAssets: {
-        styles: true
+        fonts: false,
+        images: false,
+        styles: false
       },
 
       // Cache assets in local storage to avoid re-processing.
@@ -95,9 +97,15 @@
   // ----------------------------------
   // URL helper — only checks for ON
   // ----------------------------------
+  const getUrlParams = () => {
+    const raw = window.location.search || "";
+    const normalized = raw.startsWith("?") ? raw.slice(1).replace(/,/g, "&") : raw.replace(/,/g, "&");
+    return new URLSearchParams(normalized);
+  };
+
   const urlRequestsReplay = () => {
     try {
-      const params = new URLSearchParams(window.location.search);
+      const params = getUrlParams();
       const raw = params.get("Replay") ?? params.get("replay");
       if (!raw) return false;
 
@@ -105,6 +113,73 @@
       return v === "on" || v === "true";
     } catch {
       return false;
+    }
+  };
+
+  const parseBooleanParam = (value) => {
+    if (value == null) return undefined;
+    const v = String(value).toLowerCase();
+    if (v === "true" || v === "on" || v === "1") return true;
+    if (v === "false" || v === "off" || v === "0") return false;
+    return undefined;
+  };
+
+  const applyFeatureParamsFromUrl = () => {
+    try {
+      const params = getUrlParams();
+
+      const canvas = parseBooleanParam(params.get("canvas"));
+      if (typeof canvas === "boolean") {
+        SESSION_RECORDER_OPTIONS.features.canvas = canvas;
+      }
+
+      const video = parseBooleanParam(params.get("video"));
+      if (typeof video === "boolean") {
+        SESSION_RECORDER_OPTIONS.features.video = video;
+      }
+
+      const iframes = parseBooleanParam(params.get("iframes"));
+      if (typeof iframes === "boolean") {
+        SESSION_RECORDER_OPTIONS.features.iframes = iframes;
+      }
+
+      const cacheAssets = parseBooleanParam(params.get("cacheAssets"));
+      if (typeof cacheAssets === "boolean") {
+        SESSION_RECORDER_OPTIONS.features.cacheAssets = cacheAssets;
+      }
+
+      const assets = parseBooleanParam(params.get("assets"));
+      const assetsStyles = parseBooleanParam(params.get("assetsStyles"));
+      const assetsFonts = parseBooleanParam(params.get("assetsFonts"));
+      const assetsImages = parseBooleanParam(params.get("assetsImages"));
+
+      if (assets === false) {
+        SESSION_RECORDER_OPTIONS.features.packAssets = false;
+      } else if (
+        assets === true ||
+        typeof assetsStyles === "boolean" ||
+        typeof assetsFonts === "boolean" ||
+        typeof assetsImages === "boolean"
+      ) {
+        const packAssets = {
+          styles: assets === true,
+          fonts: assets === true,
+          images: assets === true
+        };
+
+        if (typeof assetsStyles === "boolean") packAssets.styles = assetsStyles;
+        if (typeof assetsFonts === "boolean") packAssets.fonts = assetsFonts;
+        if (typeof assetsImages === "boolean") packAssets.images = assetsImages;
+
+        SESSION_RECORDER_OPTIONS.features.packAssets = packAssets;
+      }
+
+      const backgroundServiceSrc = params.get("backgroundServiceSrc");
+      if (backgroundServiceSrc) {
+        SESSION_RECORDER_OPTIONS.features.backgroundServiceSrc = backgroundServiceSrc;
+      }
+    } catch {
+      // Ignore malformed URL params; fall back to defaults.
     }
   };
 
@@ -159,6 +234,7 @@
     if (recorderEnabled) return;
     recorderEnabled = true;
 
+    applyFeatureParamsFromUrl();
     await loadSessionRecorderScript();
 
     if (window.SplunkSessionRecorder && typeof window.SplunkSessionRecorder.init === "function") {
