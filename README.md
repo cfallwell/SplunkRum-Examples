@@ -1,10 +1,10 @@
 # SplunkRum-Examples
 
-Collection of Splunk RUM session-recording examples for multi-page apps (MPA) and single-page apps (SPA) that enable on-demand session recording with url parameters. The code lives in the folders below; this README explains what each script does and how to deploy it.
+This repo contains an NPM package for SPA apps, and Splunk RUM examples for both multi-page apps (MPA) and single-page apps (SPA) that enable on-demand session recording and control via url parameters. 
 
 ## Contents
 
-- `mpa-script/rumbootstrap.js`: lightweight bootstrapper for classic multi-page sites.
+- `mpa-script/rumbootstrap.js`: lightweight bootstrapper for classic multi-page sites. Can be used for SPA sites that do not need to capture routes
 - `spa-npm/`: reusable TypeScript package for SPA routing-aware tracking.
 - `spa-demo/`: Vite demo app showing the SPA package in a real React flow.
 
