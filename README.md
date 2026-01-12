@@ -1,4 +1,4 @@
-# SplunkRum-Examples
+# splunk-rum-examples
 
 This repo contains an NPM package for SPA apps, and Splunk RUM examples for both multi-page apps (MPA) and single-page apps (SPA) that enable on-demand session recording and control via url parameters. 
 
