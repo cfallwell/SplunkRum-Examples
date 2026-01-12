@@ -1,360 +1,89 @@
 # SplunkRum-Examples
 
-Collection of Splunk RUM session-recording examples for both multi-page apps (MPA) and single-page apps (SPA). The code lives in the referenced folders below; this README focuses on what each script does and how to deploy it.
+Collection of Splunk RUM session-recording examples for multi-page apps (MPA) and single-page apps (SPA) that enable on-demand session recording with url parameters. The code lives in the folders below; this README explains what each script does and how to deploy it.
 
-## What is included
+## Contents
 
-- `MPA Script/rumbootstrap.js` provides a lightweight bootstrapper you can drop into classic multi-page sites to control when session recording starts.
-- `SPA rumBootstrap NPM/` contains a reusable TypeScript package that wires session recording into a SPA with routing-aware tracking.
-- `spa-demo/` is a Vite-based demo app showing how to use the SPA package in a real React flow.
+- `MPA Script/rumbootstrap.js`: lightweight bootstrapper for classic multi-page sites.
+- `SPA rumBootstrap NPM/`: reusable TypeScript package for SPA routing-aware tracking.
+- `spa-demo/`: Vite demo app showing the SPA package in a real React flow.
 
-## Deployment methodology
+## Deployment overview
 
-1. Decide on the integration path based on your app type:
-   - MPA: copy `MPA Script/rumbootstrap.js` into your static asset pipeline and include it on every page.
-   - SPA: install/build the package from `SPA rumBootstrap NPM/` and import it in your application bootstrap.
-2. Configure your Splunk RUM settings (beacon endpoint, realm, application name) within the script/package entry points.
-3. Deploy the scripts with your normal release pipeline so the bootstrapper is versioned and cacheable like any other frontend asset.
+- Choose MPA or SPA integration.
+- Configure Splunk RUM settings (realm, access token, app name, environment) in the script/package.
+- Deploy with your normal release pipeline so the bootstrapper is versioned and cacheable.
 
 ## Recommendations
 
-- Keep the bootstrapper loaded early in the page so it can capture the full user session once recording is enabled.
-- Use feature flags or runtime configuration to control when recording is started for targeted sessions.
-- In SPAs, hook routing events so navigation changes are correctly reflected in session recordings.
-- Validate in a staging environment first to confirm data ingestion and session playback quality.
-1. Overview
-
-This document describes a bootstrap script, rumBootstrap.js, that standardizes the way we deploy:
-
-Splunk Real User Monitoring (RUM) for browser applications
-
-Splunk Session Recorder / Replay (Session Recorder)
-
-1.1. The goals
-
-Provide a single shared JS entry point for RUM + Session Recorder.
-
-Allow enabling Session Recorder on demand per session:
-
-?Replay=on or ?Replay=true → enable recorder and persist for the current browser session.
-
-No param → recorder remains off unless previously enabled in this session.
-
-Expose all important Session Recorder parameters as top-level config in the script, so teams can adjust masking, rules, and features without changing logic.
-
-Ensure the application teams do not have to be involved in deployment
-
-Work for both:
-
-Single Page Apps (SPAs)
-
-Multi-Page Apps (MPAs)
-
-ReactJS excluded (does require application teams)
-
-It is included from HTML (e.g. index.html) and will:
-
-Load and initialize Splunk RUM for every page.
-
-Conditionally load and initialize Session Recorder when requested.
-
-1.2. The script is responsible for:
-
-1.2.1. RUM Initialization
-
-Dynamically loads the Splunk RUM JS bundle.
-
-Calls SplunkRum.init with application-specific options (realm, access token, app name, environment, etc.).
-
-Session Recorder Initialization
-
-1.2.2. Configuration Management
-
-Exposes a configuration object containing:
-
-Required recorder fields (realm, rumAccessToken, recorder).
-
-Masking flags (maskAllInputs, maskAllText).
-
-maxExportIntervalMs.
-
-sensitivityRules.
-
-features (background service, canvas, video, iframes, packAssets, cacheAssets).
-
-Dynamically loads the Session Recorder script.
-
-Calls SplunkSessionRecorder.init(SESSION_RECORDER_OPTIONS) when enabled.
-
-1.2.3. Replay Enablement
-
-Uses the URL parameter Replay/replay:
-
-on / true → enable Session Recorder for this session.
-
-Uses sessionStorage key splunk-session-replay-enabled to:
-
-Persist the “replay enabled” state within a single browser session (tab/window).
-
-1.2.4. SPA Hooks (Optional)
-
-Provides the following globals for SPA frameworks:
-
-window.enableReplayPersist() – sets the session flag and enables recorder.
-
-window.enableReplayNow() – enables recorder immediately at runtime.
-
-2. Script Code
-
-Save the following as lib/rumBootstrap.js (no <script> tags):
-
-
-
-(() => {
-  // ----------------------------------
-  // VERSION / CDN CONFIG
-  // ----------------------------------
-  const SPLUNK_RUM_VERSION = "v1.1.0"; // adjust if you upgrade later
-
-  const RUM_SCRIPT_URL =
-    `https://cdn.signalfx.com/o11y-gdi-rum/${SPLUNK_RUM_VERSION}/splunk-otel-web.js`;
-
-  const SESSION_RECORDER_SCRIPT_URL =
-    `https://cdn.signalfx.com/o11y-gdi-rum/${SPLUNK_RUM_VERSION}/splunk-otel-web-session-recorder.js`;
-
-  // ----------------------------------
-  // RUM INIT CONFIG (v1.x API)
-  // ----------------------------------
-  // Replace these with your real values
-  const RUM_INIT_OPTIONS = {
-    // Required
-    realm: "your-realm",
-    rumAccessToken: "your-splunk-rum-token",
-    applicationName: "your-app-name",
-    deploymentEnvironment: "production",
-
-    // Optional but common
-    version: "your-app-version" // e.g. "1.0.0"
-  };
-
-  // ----------------------------------
-  // SESSION RECORDER CONFIG
-  // ----------------------------------
-  // All optional parameters from Splunk docs exposed here.
-  // You can change these defaults without touching the core logic.
-  const SESSION_RECORDER_OPTIONS = {
-    // Required recorder fields
-    realm: RUM_INIT_OPTIONS.realm,
-    rumAccessToken: RUM_INIT_OPTIONS.rumAccessToken,
-
-    // ---- Sensitivity / masking ----
-    // Show or hide values of input elements.
-    // true => mask all inputs (default)
-    maskAllInputs: true,
-
-    // Show or hide text in the replay.
-    // true => mask all text (default)
-    maskAllText: true,
-
-    // Time in ms after which you will always get a segment if there is data.
-    // Default: 5000
-    maxExportIntervalMs: 5000,
-
-    // Fine-grained control over what is recorded.
-    // Example:
-    // sensitivityRules: [
-    //   { rule: "unmask", selector: "p" },
-    //   { rule: "exclude", selector: "img" },
-    //   { rule: "mask", selector: ".user-class" }
-    // ]
-    sensitivityRules: [],
-
-    // ---- Features object ----
-    features: {
-      // Link to published background-service.html
-      // Helps avoid blocking main thread during processing.
-      // e.g. "https://example.xyz/background-service.html"
-      backgroundServiceSrc: undefined,
-
-      // Optional: record canvas elements
-      canvas: false,
-
-      // Optional: record video elements
-      video: false,
-
-      // Optional: record same-origin iframes
-      iframes: false,
-
-      // Pack assets (images, CSS, fonts) into recording.
-      // Can be boolean or object. Default in docs: { styles: true }.
-      // Example object:
-      // packAssets: { fonts: true, images: true, styles: true }
-      packAssets: {
-        styles: true
-      },
-
-      // Cache assets in local storage to avoid re-processing.
-      cacheAssets: false
-    }
-  };
-
-  // ----------------------------------
-  // SESSION KEY FOR “ONCE PER BROWSER SESSION”
-  // ----------------------------------
-  const SESSION_KEY = "splunk-session-replay-enabled"; // stores "on"
-
-  // ----------------------------------
-  // URL helper — only checks for ON
-  // ----------------------------------
-  const urlRequestsReplay = () => {
-    try {
-      const params = new URLSearchParams(window.location.search);
-      const raw = params.get("Replay") ?? params.get("replay");
-      if (!raw) return false;
-
-      const v = raw.toLowerCase();
-      return v === "on" || v === "true";
-    } catch {
-      return false;
-    }
-  };
-
-  // ----------------------------------
-  // Generic script loader
-  // ----------------------------------
-  const loadScript = (src) =>
-    new Promise((resolve, reject) => {
-      const s = document.createElement("script");
-      s.async = true;
-      s.src = src;
-      s.crossOrigin = "anonymous";
-      s.onload = resolve;
-      s.onerror = (err) => {
-        console.error("[Splunk Loader] Failed to load", src, err);
-        reject(err);
-      };
-      document.head.appendChild(s);
-    });
-
-  // ----------------------------------
-  // RUM (always enabled)
-  // ----------------------------------
-  let rumInitialized = false;
-
-  const initRUM = async () => {
-    if (rumInitialized) return;
-    rumInitialized = true;
-
-    await loadScript(RUM_SCRIPT_URL);
-
-    if (window.SplunkRum && typeof window.SplunkRum.init === "function") {
-      window.SplunkRum.init(RUM_INIT_OPTIONS);
-    } else {
-      console.warn("[Splunk RUM] SplunkRum.init() not found. Check version/API.");
-    }
-  };
-
-  // ----------------------------------
-  // Session Recorder (enable-only)
-  // ----------------------------------
-  let recorderScriptLoaded = false;
-  let recorderEnabled = false;
-
-  const loadSessionRecorderScript = async () => {
-    if (recorderScriptLoaded) return;
-    await loadScript(SESSION_RECORDER_SCRIPT_URL);
-    recorderScriptLoaded = true;
-  };
-
-  const enableSessionRecorder = async () => {
-    if (recorderEnabled) return;
-    recorderEnabled = true;
-
-    await loadSessionRecorderScript();
-
-    if (window.SplunkSessionRecorder && typeof window.SplunkSessionRecorder.init === "function") {
-      window.SplunkSessionRecorder.init(SESSION_RECORDER_OPTIONS);
-    } else if (window.SplunkRum && typeof window.SplunkRum.enableSessionReplay === "function") {
-      // Fallback for older/alt APIs
-      window.SplunkRum.enableSessionReplay();
-    } else if (window.SessionReplay && typeof window.SessionReplay.init === "function") {
-      window.SessionReplay.init();
-    } else {
-      console.warn("[Session Recorder] No known init API found.");
-    }
-  };
-
-  // ----------------------------------
-  // Main logic — enable-only model
-  // ----------------------------------
-  (async () => {
-    await initRUM();
-
-    const sessionEnabled = sessionStorage.getItem(SESSION_KEY) === "on";
-    const urlEnable = urlRequestsReplay();
-
-    // URL flag wins, and persists for this browser session
-    if (urlEnable) {
-      sessionStorage.setItem(SESSION_KEY, "on");
-      await enableSessionRecorder();
-      return;
-    }
-
-    // Otherwise, rely on session state
-    if (sessionEnabled) {
-      await enableSessionRecorder();
-    }
-    // If neither, recorder stays off.
-  })();
-
-  // ----------------------------------
-  // OPTIONAL SPA HOOKS (if you want to use them)
-  // ----------------------------------
-  // Call window.enableReplayPersist() from your SPA when you want
-  // to flip replay ON for the rest of this tab’s session.
-  window.enableReplayPersist = () => {
-    sessionStorage.setItem(SESSION_KEY, "on");
-    // You can reload to force bootstrap to re-run, if desired:
-    // window.location.reload();
-    // Or just enable immediately:
-    enableSessionRecorder();
-  };
-
-  // For immediate runtime-only enabling (no sessionStorage change):
-  window.enableReplayNow = () => {
-    enableSessionRecorder();
-  };
-})();
-
-2.1.1. How you use the parameters
+- Load the bootstrapper early so it can capture the full session once recording is enabled.
+- Use feature flags or runtime config to control when recording starts.
+- In SPAs, hook routing events so navigation changes are reflected in session recordings.
+- Validate in staging to confirm ingestion and playback quality.
+
+## MPA bootstrap: overview
+
+### Goals
+
+- Provide a single shared JS entry point for RUM + Session Recorder.
+- Enable Session Recorder on demand per session:
+  - `?Replay=on` or `?Replay=true` enables recorder and persists for the current browser session.
+  - No param keeps the recorder off unless previously enabled in the session.
+- Expose Session Recorder parameters as top-level config so teams can tune masking, rules, and features.
+- Avoid requiring application teams for deployment changes.
+- Work for both SPAs and MPAs (React-specific hooks are optional).
+
+### Behavior
+
+- Included from HTML (for example `index.html`).
+- Always loads and initializes Splunk RUM.
+- Conditionally loads and initializes Session Recorder when requested.
+
+### Responsibilities
+
+- RUM initialization:
+  - Dynamically loads the RUM bundle.
+  - Calls `SplunkRum.init` with app options (realm, access token, app name, environment).
+- Configuration management:
+  - Exposes a configuration object with required fields and common options.
+  - Loads the Session Recorder script and calls `SplunkSessionRecorder.init` when enabled.
+- Replay enablement:
+  - Reads `Replay`/`replay` query params.
+  - Persists enablement using `sessionStorage` key `splunk-session-replay-enabled`.
+- Optional SPA hooks:
+  - `window.enableReplayPersist()` to set the session flag and enable recorder.
+  - `window.enableReplayNow()` to enable recorder immediately without a session flag.
+
+## Recorder parameters
 
 The recorder accepts these optional params:
 
-maskAllInputs (boolean, default true)
+- `maskAllInputs` (boolean, default `true`)
+- `maskAllText` (boolean, default `true`)
+- `maxExportIntervalMs` (number, default `5000`)
+- `sensitivityRules` (array of rule objects)
+- `features` (object) with keys like `backgroundServiceSrc`, `canvas`, `video`, `iframes`, `packAssets`, `cacheAssets`
 
-maskAllText (boolean, default true)
+Turn on full-text and input capture:
 
-maxExportIntervalMs (number, default 5000)
-
-sensitivityRules (array of rule objects)
-
-features (object) with keys like backgroundServiceSrc, canvas, video, iframes, packAssets, cacheAssets
-
-Turn on full-text & input capture:
-
+```js
 maskAllInputs: false,
 maskAllText: false,
+```
 
 Add fine-grained masking/exclusion:
 
+```js
 sensitivityRules: [
   { rule: "unmask", selector: "p" },
   { rule: "exclude", selector: "img" },
   { rule: "mask", selector: ".user-class" }
 ],
+```
 
 Enable advanced features:
 
+```js
 features: {
   backgroundServiceSrc: "https://example.xyz/background-service.html",
   canvas: true,
@@ -363,90 +92,68 @@ features: {
   packAssets: { fonts: true, images: true, styles: true },
   cacheAssets: true
 }
+```
 
+## SPA and MPA usage without app code changes
 
+### SPAs (Single Page Apps)
 
-2.1. How This Works for SPAs & MPAs Without Engineering
+- Base `rumBootstrap.js` behavior works even without touching the SPA repo.
+- On initial load:
+  - Script is injected at the edge.
+  - RUM is initialized.
+  - `?Replay=on` sets `sessionStorage['splunk-session-replay-enabled'] = 'on'`.
+  - Session Recorder is enabled for that browser session.
+- SPA route changes do not require repo code changes as long as you can start with `?Replay=on`.
+- You can use the MPA script in SPAs, but it is a baseline bootstrap only:
+  - No router-aware tracking or SPA-specific helpers from the NPM package.
+  - Replay enablement is limited to the URL/session logic and the optional global hooks.
+  - No typed config override or React context helpers.
 
-2.1.1. SPAs (Single Page Apps)
+Example flow:
 
-For SPAs, the existing rumBootstrap.js behavior is enough even if you never touch the SPA repo:
+- `https://app.company.com/?Replay=on` → user navigates around → sessions are recorded.
 
-On initial full page load:
-
-Script is injected at the edge.
-
-RUM is initialized.
-
-If the user comes in with ?Replay=on:
-
-Bootstrap sets sessionStorage['splunk-session-replay-enabled'] = 'on'.
-
-Session Recorder is enabled for that browser session.
-
-SPA route changes (React/Vue/Angular) don’t require any repo code changes:
-
-As long as you can start a session with ?Replay=on, you get replay for that session.
-
-This covers support flows like:
-https://app.company.com/?Replay=on → user navigates around → sessions are recorded.
-
-You could do fancy router-based toggling, but that does require repo access. For a “platform-only” solution, the URL-driven behavior is enough.  SPA extras like router hooks are “nice to have”; the base model (URL ?Replay=on → sessionStorage flag + bootstrap) works fine without any repo changes. See: SPA Examples
-
-2.1.2. MPAs (Multi-Page Apps)
-
-For MPAs, edge injection is even more straightforward:
+### MPAs (Multi-Page Apps)
 
 Every HTML page served by that host includes:
 
+```html
 <script src="https://cdn.internal.company.com/rum-bootstrap/0.1.0-beta/rumBootstrap.min.js"></script>
+```
 
+If the user starts with `?Replay=on`:
 
-If the user starts with ?Replay=on:
-
-sessionStorage flag is set for that tab.
-
-Every subsequent page load in the same tab will:
-
-Load bootstrap again.
-
-See the sessionStorage flag.
-
-Re-enable Session Recorder.
-
-No app code involved. Just platform-side injection.
+- `sessionStorage` flag is set for that tab.
+- Every subsequent page load in the same tab will re-enable Session Recorder.
+- No app code involved, just platform-side injection.
 
 Caveats:
 
-New tab/window is a new session (no sessionStorage).
+- New tab/window is a new session (no `sessionStorage`).
 
-That’s usually desired; if not, you can design org-specific patterns, but they’ll almost always be infra-side.
+## SPA integration examples
 
+### Include bootstrap in `index.html`
 
-
-2.1.3. SPA Integration Examples
-
-2.1.3.1. Including the bootstrap in an SPA index.html
-
+```html
 <!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
     <title>My SPA</title>
-
-    <!-- RUM + Session Recorder bootstrap -->
     <script src="/lib/rumBootstrap.js"></script>
-
-    <!-- Main SPA bundle -->
     <script src="/dist/app.bundle.js" defer></script>
   </head>
   <body>
     <div id="app"></div>
   </body>
 </html>
+```
 
-2.1.3.2. React Router: auto-enable when ?Replay=on
+### React Router: auto-enable when `?Replay=on`
 
+```tsx
 // ReplayParamWatcher.tsx
 import { useEffect } from "react";
 import { useLocation } from "react-router-dom";
@@ -468,9 +175,11 @@ export function ReplayParamWatcher() {
 
   return null;
 }
+```
 
 In your app root:
 
+```tsx
 function App() {
   return (
     <>
@@ -479,10 +188,11 @@ function App() {
     </>
   );
 }
+```
 
+### Vue Router: `afterEach` hook
 
-2.1.3.3. Vue Router: afterEach hook
-
+```js
 // router.js
 import { createRouter, createWebHistory } from "vue-router";
 
@@ -501,95 +211,67 @@ router.afterEach((to) => {
 });
 
 export default router;
+```
 
+### Manual enable in SPA (for a debug menu)
 
-2.1.3.4. Manual enable in SPA (e.g. from a debug menu)
-
-// Somewhere in your SPA UI
+```js
 button.addEventListener("click", () => {
   window.enableReplayPersist?.();
 });
+```
 
+## Recommendations for Enterprise Hosting and Versioning
 
-2.2. Host the Bootstrap as a Central, Versioned Asset
+### Repo and versioning (platform teams own the repos and code)
 
-2.2.1. Repo & Versioning (Platform-owned)
+- Create a dedicated repo, for example:
+  - `platform-rum-bootstrap/`
+  - `rumBootstrap.js`
+  - `package.json` (optional)
+  - `CHANGELOG.md`
+  - `README.md`
+- Maintain semantic versions; start with `0.1.0-beta`.
+- Tag releases in Git:
 
-Create a dedicated repo, e.g.:
-
-platform-rum-bootstrap/
-  rumBootstrap.js
-  package.json (optional)
-  CHANGELOG.md
-  README.md
-
-
-Maintain semantic versions; you’re starting with:
-
-rumBootstrap.js version: 0.1.0-beta
-
-
-Tag releases in Git:
-
+```bash
 git tag -a v0.1.0-beta -m "Initial shared Splunk RUM + Session Recorder bootstrap"
 git push origin v0.1.0-beta
+```
 
-
-2.2.2. Build & Publish to Artifactory / CDN
+### Build and publish to Artifactory/CDN
 
 CI pipeline (owned by platform team):
 
-On tag vX.Y.Z:
+- On tag `vX.Y.Z`:
+  - Optionally run lint/tests.
+  - Optionally minify → `rumBootstrap.min.js`.
+  - Publish artifacts to Artifactory (or internal object store):
+    - `/rum-bootstrap/0.1.0-beta/rumBootstrap.js`
+    - `/rum-bootstrap/0.1.0-beta/rumBootstrap.min.js`
+    - `/rum-bootstrap/latest/rumBootstrap.js` (optional)
+- Expose via CDN/edge URL, for example:
+  - `https://cdn.internal.company.com/rum-bootstrap/0.1.0-beta/rumBootstrap.min.js`
 
-Optionally run lint/tests.
+Platform team controls:
 
-Optionally minify → rumBootstrap.min.js.
+- What version is published.
+- When a version is promoted from beta to stable.
+- What URL apps load from.
 
-Publish artifacts to Artifactory (or internal object store):
+## Edge/ingress script injection (no app repo changes)
 
-/rum-bootstrap/0.1.0-beta/rumBootstrap.js
-/rum-bootstrap/0.1.0-beta/rumBootstrap.min.js
-/rum-bootstrap/latest/rumBootstrap.js (optional pointer)
+### NGINX/Envoy/Ingress filter pattern
 
+Inject the script tag before `</head>` or `</body>`:
 
-Expose them via CDN or edge URL, e.g.:
-
-https://cdn.internal.company.com/rum-bootstrap/0.1.0-beta/rumBootstrap.min.js
-
-
-Platform team fully controls:
-
-What version is published.
-
-When a version is promoted from beta to stable.
-
-What URL apps will ultimately load from.
-
-2.3. Edge / Ingress Script Injection (No App Repo Changes)
-
-This is the key pattern: inject the script tag at the edge.
-
-2.3.1. NGINX / Envoy / Ingress Filter Pattern
-
-Suppose you have:
-
-Ingress / LB / gateway that terminates TLS and forwards to app.
-
-Platform team controls that layer.
-
-You can:
-
-Inspect outgoing responses with Content-Type: text/html.
-
-Inject:
-
+```html
 <script src="https://cdn.internal.company.com/rum-bootstrap/0.1.0-beta/rumBootstrap.min.js"></script>
+```
 
+Example (NGINX `sub_filter` style pseudo-config):
 
-just before </head> (or </body>).
-
-Example (NGINX sub_filter style pseudo-config):
-
+```nginx
 # Only for HTML responses
 sub_filter_types text/html;
 
@@ -602,146 +284,86 @@ server {
     sub_filter '</head>' '<script src="https://cdn.internal.company.com/rum-bootstrap/0.1.0-beta/rumBootstrap.min.js"></script></head>';
     sub_filter_once on;
 }
+```
 
+Result: product teams do not touch HTML. Platform flips a config switch to enable RUM + Recorder per app.
 
-Or for Envoy/LB/CDN equivalents (Envoy filters, Lambda@Edge, CloudFront Functions, Akamai EdgeWorkers, F5 iRules, etc.) you can do the same thing: "find </head> → insert script tag."
-
-✅ Result: Product teams don’t touch their HTML at all.
-Platform flips a config switch to “turn on RUM+Recorder for app X.”
-
-2.3.2. Per-App / Per-Env Mapping Without Code Access
-
-You can onboard apps like this:
+### Per-app/per-env mapping without code access
 
 Maintain a simple mapping in infra config:
 
+```yaml
 rum_onboarded_apps:
   - host: app1.company.com
     version: 0.1.0-beta
   - host: app2.company.com
     version: 0.2.0-beta
+```
 
+Use it to generate injection rules:
 
-Use that to generate NGINX/Envoy/CDN rules:
-
+```html
 <script src="https://cdn.internal.company.com/rum-bootstrap/0.2.0-beta/rumBootstrap.min.js"></script>
+```
 
+## Configuration management without app changes
 
-per host/environment, without touching app code.
+### Environment-specific builds
 
-2.4. Configuration Management Without App Changes
+Build one artifact per environment with baked-in config:
 
-Platform team also needs to manage realm, tokens, environments etc. without touching each repo.
+- `rumBootstrap.dev.js` (dev realm + dev token)
+- `rumBootstrap.stg.js` (staging realm + token)
+- `rumBootstrap.prod.js` (prod realm + token)
 
-2.4.1. Environment-Specific Builds of rumBootstrap.js
+Publish to CDN:
 
-You can build one artifact per environment, each with baked-in config:
+- `https://cdn.internal.company.com/rum-bootstrap/0.1.0-beta/rumBootstrap.dev.min.js`
+- `https://cdn.internal.company.com/rum-bootstrap/0.1.0-beta/rumBootstrap.stg.min.js`
+- `https://cdn.internal.company.com/rum-bootstrap/0.1.0-beta/rumBootstrap.prod.min.js`
 
-rumBootstrap.dev.js (dev realm + dev token)
+Example mapping:
 
-rumBootstrap.stg.js (staging realm + token)
+- `app1-dev.company.com` → `rumBootstrap.dev.min.js`
+- `app1.company.com` → `rumBootstrap.prod.min.js`
 
-rumBootstrap.prod.js (prod realm + token)
+### Per-app sensitivity rules without repo access
 
-Publish each to your CDN:
+Option 1: generate different `rumBootstrap.js` per app.
 
-https://cdn.internal.company.com/rum-bootstrap/0.1.0-beta/rumBootstrap.dev.min.js
-https://cdn.internal.company.com/rum-bootstrap/0.1.0-beta/rumBootstrap.stg.min.js
-https://cdn.internal.company.com/rum-bootstrap/0.1.0-beta/rumBootstrap.prod.min.js
+Option 2: build a central config endpoint and fetch overrides at runtime:
 
-
-Then:
-
-Use hostnames / paths to choose which version to inject.
-
-Example:
-
-app1-dev.company.com → inject rumBootstrap.dev.min.js
-
-app1.company.com → inject rumBootstrap.prod.min.js
-
-All controlled by platform.
-
-2.4.2. Per-App Sensitivity Rules Without Repo Access
-
-If you need per-app sensitivityRules, you can either:
-
-Generate different rumBootstrap.js per app (less ideal), or
-
-Build a central config endpoint plus a little dynamic fetch.
-
-Example approach (still no app changes):
-
-In rumBootstrap.js, on startup:
-
+```js
 const host = window.location.host;
 
 fetch(`https://config.internal.company.com/rum/recorder-config?host=${encodeURIComponent(host)}`)
-  .then(res => res.json())
-  .then(cfg => {
+  .then((res) => res.json())
+  .then((cfg) => {
     Object.assign(SESSION_RECORDER_OPTIONS, cfg);
     // then init as normal
   });
+```
 
+## Alternate no-code options
 
-Platform team maintains that config service / JSON store.
+If edge injection is not available but you control another shared entrypoint:
 
-Engineering teams don’t touch their apps.
+- Tag manager (GTM, Tealium, Adobe Launch): add a tag that injects the script early.
+- Shared layout/theme system: add the script in the shared template.
+- Internal browser extension (internal tools only): inject scripts into specified domains.
 
-2.5. Alternate No-Code Options (If Edge Injection Isn’t Available)
-
-If you don’t control the ingress but you do control some other shared entrypoint:
-
-Tag Manager (GTM, Tealium, Adobe Launch, etc.):
-
-Add a tag that injects <script src="...rumBootstrap.min.js"> at page start.
-
-Many orgs already centralize JS includes this way.
-
-Still no changes inside app repos.
-
-Shared Layout / Theme System:
-
-If apps use a central layout system controlled by platform (e.g., shared Razor/JSP/Thymeleaf layout):
-
-Add the script there.
-
-Product teams that consume that layout automatically get RUM/Recorder.
-
-Internal Browser Extension (for internal tools only):
-
-For purely internal tooling, a browser extension can inject scripts into specified domains.
-
-Not great for Internet-facing users, but useful for internal user/session testing.
-
-2.6. Reality Check: Where You Do Need Code Access
-
-With this design, you don’t need engineering for:
-
-Including bootstrap.
-
-Version upgrades.
-
-Realm/token/env changes.
-
-Turning recorder on via URL param.
+## Where you do need code access
 
 You only need repo access if you want:
 
-Deep app-specific behaviors:
+- SPA router hooks for enabling replay based on internal route state.
+- App code calling `window.enableReplayPersist()` from custom UI.
+- Per-component data attributes that control masking/unmasking.
 
-SPA router hooks for enabling replay based on internal route state.
+For the core use case, the combination of:
 
-App code calling window.enableReplayPersist() from custom UI.
-
-Per-component data attributes that control masking/unmasking.
-
-But for the core use case the combination of:
-
-Shared versioned rumBootstrap.js
-
-Central hosting (Artifactory/CDN)
-
-Edge/Ingress/Tag-manager injection
+- Shared versioned `rumBootstrap.js`
+- Central hosting (Artifactory/CDN)
+- Edge/ingress/tag-manager injection
 
 lets the platform team solve it end-to-end.
