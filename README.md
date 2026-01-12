@@ -292,6 +292,55 @@ server {
 
 Result: product teams do not touch HTML. Platform flips a config switch to enable RUM + Recorder per app.
 
+### Envoy filter example (Lua)
+
+```yaml
+http_filters:
+  - name: envoy.filters.http.lua
+    typed_config:
+      "@type": type.googleapis.com/envoy.extensions.filters.http.lua.v3.Lua
+      inline_code: |
+        function envoy_on_response(response_handle)
+          local content_type = response_handle:headers():get("content-type") or ""
+          if string.find(content_type, "text/html") then
+            local body = response_handle:body()
+            if body:length() > 0 then
+              local script = '<script src="https://cdn.internal.company.com/rum-bootstrap/0.1.0-beta/rumBootstrap.min.js"></script>'
+              local updated = string.gsub(body:getBytes(0, body:length()), "</head>", script .. "</head>")
+              body:setBytes(updated)
+            end
+          end
+        end
+```
+
+### F5 iRule example
+
+```tcl
+when HTTP_RESPONSE {
+  if {[HTTP::header value "Content-Type"] contains "text/html"} {
+    set payload [HTTP::payload]
+    if {$payload ne ""} {
+      set script "<script src=\"https://cdn.internal.company.com/rum-bootstrap/0.1.0-beta/rumBootstrap.min.js\"></script>"
+      regsub -all "</head>" $payload "${script}</head>" payload
+      HTTP::payload replace 0 [string length [HTTP::payload]] $payload
+    }
+  }
+}
+```
+
+### WAF rule example (ModSecurity-style response edit)
+
+```apache
+SecResponseBodyAccess On
+SecRule RESPONSE_CONTENT_TYPE "@contains text/html" \
+  "id:100001,phase:4,pass,nolog,ctl:ruleEngine=On, \
+  t:none, \
+  setvar:tx.inject_script=|<script src=\\\"https://cdn.internal.company.com/rum-bootstrap/0.1.0-beta/rumBootstrap.min.js\\\"></script>|, \
+  append:'%{tx.inject_script}'"
+```
+
+## Configuration management without app changes
+
 ### Per-app/per-env mapping without code access
 
 Maintain a simple mapping in infra config that ties hostnames (and optionally environments) to a specific bootstrap version or build. This lets the platform team control exactly what each app loads without touching app repos.
@@ -362,8 +411,6 @@ Injection layer then maps each host to its generated script URL:
 ```html
 <script src="https://cdn.internal.company.com/rum-bootstrap/app1.company.com/prod/0.2.0-beta/rumBootstrap.min.js"></script>
 ```
-
-## Configuration management without app changes
 
 ### Environment-specific builds
 
