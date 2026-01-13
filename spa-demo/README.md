@@ -13,6 +13,7 @@ npm run build
 
 cd ../spa-demo
 npm install
+npm install --save-dev @splunk/rum-build-plugins
 npm run dev
 ```
 

@@ -24,16 +24,8 @@ declare global {
 }
 
 // ----------------------------------------------------
-// CONSTANTS (defaults only; apps should override via configOverride)
+// CONFIG (configOverride required)
 // ----------------------------------------------------
-export const DEFAULT_RUM_CONFIG: RumConfig = {
-  realm: "your_realm",
-  rumAccessToken: "your_access_token",
-  applicationName: "shopping-spa-demo",
-  environment: "development",
-  debug: true,
-  ignoreUrls: ["http://sampleurl.org"],
-};
 
 // Splunk docs CDN URLs
 const RUM_VERSION = "1.1.0";
@@ -159,13 +151,23 @@ export const setReplayEnabledForSession = (): void => {
 // RUM INITIALIZATION
 // ----------------------------------------------------
 let rumInitialized = false;
-let activeRumConfig: RumConfig = DEFAULT_RUM_CONFIG;
+let activeRumConfig: RumConfig | null = null;
 
 export const initRUM = async (overrideConfig?: Partial<RumConfig>): Promise<void> => {
   if (rumInitialized) return;
   rumInitialized = true;
 
-  const config: RumConfig = { ...DEFAULT_RUM_CONFIG, ...overrideConfig };
+  const config = overrideConfig as RumConfig | undefined;
+  if (
+    !config ||
+    !config.realm ||
+    !config.rumAccessToken ||
+    !config.applicationName ||
+    !config.environment
+  ) {
+    console.warn("[Splunk RUM] Missing required config. Provide configOverride with realm/token/app/env.");
+    return;
+  }
   activeRumConfig = config;
   window.SplunkRumConfig = config;
 
@@ -209,7 +211,11 @@ export const initSessionReplay = async (
   if (replayInitialized) return;
 
   // Ensure RUM is initialized first so tokens/realm are available.
-  const rumConfig = window.SplunkRumConfig ?? activeRumConfig ?? DEFAULT_RUM_CONFIG;
+  const rumConfig = window.SplunkRumConfig ?? activeRumConfig;
+  if (!rumConfig) {
+    console.warn("[Session Replay] RUM config not available. Provide configOverride first.");
+    return;
+  }
 
   await loadReplayScript();
 
