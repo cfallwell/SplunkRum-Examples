@@ -1,10 +1,19 @@
 require("ts-node/register/transpile-only");
-const path = require("path");
+const path = require("node:path");
+path.default = path;
 const HtmlWebpackPlugin = require("html-webpack-plugin");
 const CopyWebpackPlugin = require("copy-webpack-plugin");
 const { SplunkRumWebpackPlugin } = require("@splunk/rum-build-plugins");
 const { rumConfig } = require("./src/rum.config.ts");
 const { version } = require("./package.json");
+
+class EnsureOutputPathPlugin {
+  apply(compiler) {
+    if (!compiler.outputPath && compiler.options.output && compiler.options.output.path) {
+      compiler.outputPath = compiler.options.output.path;
+    }
+  }
+}
 
 if (!rumConfig?.realm || !rumConfig?.applicationName) {
   throw new Error("rumConfig.realm and rumConfig.applicationName are required for source map upload.");
@@ -13,8 +22,9 @@ if (!rumConfig?.realm || !rumConfig?.applicationName) {
 module.exports = (env, argv) => {
   const isProd = argv.mode === "production";
   const accessToken = process.env.SPLUNK_ORG_ACCESS_TOKEN || process.env.SPLUNK_ACCESS_TOKEN;
+  const realm = process.env.SPLUNK_REALM || rumConfig.realm;
   if (!accessToken && isProd) {
-    throw new Error("Set SPLUNK_ORG_ACCESS_TOKEN (or SPLUNK_ACCESS_TOKEN) for source map upload.");
+    throw new Error("Set SPLUNK_ORG_ACCESS_TOKEN (or SPLUNK_ACCESS_TOKEN). This must be an org access token, not the RUM ingest token.");
   }
 
   return {
@@ -61,15 +71,20 @@ module.exports = (env, argv) => {
       new CopyWebpackPlugin({
         patterns: [{ from: path.resolve(__dirname, "public"), to: "" }],
       }),
-      new SplunkRumWebpackPlugin({
-        applicationName: rumConfig.applicationName,
-        version,
-        sourceMaps: {
-          token: accessToken || "",
-          realm: rumConfig.realm,
-          disableUpload: !isProd,
-        },
-      }),
+      new EnsureOutputPathPlugin(),
+      ...(isProd
+        ? [
+            new SplunkRumWebpackPlugin({
+              applicationName: rumConfig.applicationName,
+              version,
+              sourceMaps: {
+                token: accessToken || "",
+                realm,
+                disableUpload: !isProd,
+              },
+            }),
+          ]
+        : []),
     ],
     devServer: {
       static: [path.resolve(__dirname, "public"), path.resolve(__dirname, "dist")],
