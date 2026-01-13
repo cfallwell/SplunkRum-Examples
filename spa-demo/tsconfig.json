@@ -13,9 +13,7 @@
     "strict": true,
     "skipLibCheck": true,
     "allowSyntheticDefaultImports": true,
-    "types": [
-      "vite/client"
-    ]
+    "types": []
   },
   "include": [
     "src"
