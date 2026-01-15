@@ -1,6 +1,6 @@
 {
   "name": "@cfallwell/rumbootstrap",
-  "version": "1.0.4",
+  "version": "1.2.0",
   "description": "Splunk RUM + Session Replay bootstrap utilities for React SPAs",
   "type": "module",
   "main": "./dist/index.js",
