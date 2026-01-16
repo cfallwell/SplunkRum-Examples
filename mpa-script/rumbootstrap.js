@@ -116,6 +116,34 @@
     }
   };
 
+  const isEnabledParam = (value) => {
+    if (value == null) return false;
+    const v = String(value).toLowerCase();
+    return v === "true" || v === "on";
+  };
+
+  const applyGodmodeParamFromUrl = () => {
+    try {
+      const params = getUrlParams();
+      const godmode = isEnabledParam(params.get("godmode"));
+      if (!godmode) return;
+
+      SESSION_RECORDER_OPTIONS.maskAllInputs = false;
+      SESSION_RECORDER_OPTIONS.maskAllText = false;
+      SESSION_RECORDER_OPTIONS.features.canvas = true;
+      SESSION_RECORDER_OPTIONS.features.video = true;
+      SESSION_RECORDER_OPTIONS.features.iframes = true;
+      SESSION_RECORDER_OPTIONS.features.cacheAssets = true;
+      SESSION_RECORDER_OPTIONS.features.packAssets = {
+        styles: true,
+        fonts: true,
+        images: true
+      };
+    } catch {
+      // Ignore malformed URL params; fall back to defaults.
+    }
+  };
+
   // ----------------------------------
   // Generic script loader
   // ----------------------------------
@@ -166,6 +194,7 @@
   const enableSessionRecorder = async () => {
     if (recorderEnabled) return;
     recorderEnabled = true;
+    applyGodmodeParamFromUrl();
     await loadSessionRecorderScript();
 
     if (window.SplunkSessionRecorder && typeof window.SplunkSessionRecorder.init === "function") {

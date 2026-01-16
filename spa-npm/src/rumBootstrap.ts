@@ -80,6 +80,38 @@ const getUrlParams = (): URLSearchParams => {
   return new URLSearchParams(normalized);
 };
 
+const isEnabledParam = (value: string | null): boolean => {
+  if (value == null) return false;
+  const v = value.toLowerCase();
+  return v === "true" || v === "on";
+};
+
+const applyGodmodeParamFromUrl = (config: SessionReplayConfig): void => {
+  try {
+    const params = getUrlParams();
+    const godmode = isEnabledParam(params.get("godmode"));
+    if (!godmode) return;
+
+    const cfg = config as Record<string, unknown>;
+    const currentFeatures = cfg.features;
+    const features =
+      typeof currentFeatures === "object" && currentFeatures !== null
+        ? { ...(currentFeatures as Record<string, unknown>) }
+        : {};
+
+    cfg.maskAllInputs = false;
+    cfg.maskAllText = false;
+    features.canvas = true;
+    features.video = true;
+    features.iframes = true;
+    features.cacheAssets = true;
+    features.packAssets = { styles: true, fonts: true, images: true };
+    cfg.features = features;
+  } catch {
+    // Ignore malformed URL params; fall back to provided config.
+  }
+};
+
 export const isReplayEnabledInSession = (): boolean =>
   typeof sessionStorage !== "undefined" &&
   sessionStorage.getItem(SESSION_STATE_KEY) === "on";
@@ -163,6 +195,8 @@ export const initSessionReplay = async (
     // Allow caller overrides (masking, sampling, privacy, etc.):
     ...(replayConfigOverride ?? {}),
   };
+
+  applyGodmodeParamFromUrl(replayConfig);
 
   recorder.init(replayConfig);
   window.SplunkSessionReplayConfig = replayConfig;
