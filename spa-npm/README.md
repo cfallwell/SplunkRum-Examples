@@ -50,6 +50,15 @@ import { SplunkRumProvider, RumRouterTracker, useEnableReplayPersist } from "@cf
 
 The library ships with a minimal default config so it can bootstrap without app input. For real usage, provide your own app-specific values via `configOverride` (for example, in a `rum.config.ts` file like the demo). This avoids editing the library source and removes the need to customize the scripts directly. The demo config is intentionally separate so teams can manage realm/token/environment per app and per environment.
 
+## URL parameters (breaking change)
+
+Only the following URL params are supported for enabling Session Replay:
+
+- `replay=on|true`
+- `godmode=on|true` (enables all features and sets `maskAllInputs=false` and `maskAllText=false`)
+
+Legacy params like `canvas` or `assets` are no longer supported.
+
 ## Version pinning
 
 This build pins both RUM and Session Recorder to v1.1.0 to avoid version mismatch with `latest`.
