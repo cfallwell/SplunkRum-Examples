@@ -12,10 +12,10 @@ This repo contains an NPM package for SPA apps, and Splunk RUM examples for both
 
 ## Recorder parameters
 
-URL-parameter editable (MPA + SPA):
+URL-parameter editable (MPA + SPA) — only the options below are supported:
 
 - `replay=on|true` enables the recorder for the session.
-- `godmode=true` enables all features and sets `maskAllInputs=false` and `maskAllText=false`.
+- `godmode=on|true` enables all features and sets `maskAllInputs=false` and `maskAllText=false`.
 
 Not editable via URL (set in config for security and consistency):
 
@@ -24,11 +24,11 @@ Not editable via URL (set in config for security and consistency):
 - `maxExportIntervalMs` (number, default `5000`)
 - `sensitivityRules` (array of rule objects)
 
-Note: `godmode=true` overrides masking defaults for debugging.
+Note: `godmode=on|true` overrides masking defaults for debugging.
 
 Example:
 
-<https://app.company.com/?replay=on&godmode=true>
+<https://app.company.com/?replay=on&godmode=on>
 
 Turn on full-text and input capture (this configuration should be made in the bootstraps):
 

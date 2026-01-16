@@ -80,19 +80,17 @@ const getUrlParams = (): URLSearchParams => {
   return new URLSearchParams(normalized);
 };
 
-const parseBooleanParam = (value: string | null): boolean | undefined => {
-  if (value == null) return undefined;
+const isEnabledParam = (value: string | null): boolean => {
+  if (value == null) return false;
   const v = value.toLowerCase();
-  if (v === "true" || v === "on" || v === "1") return true;
-  if (v === "false" || v === "off" || v === "0") return false;
-  return undefined;
+  return v === "true" || v === "on";
 };
 
 const applyGodmodeParamFromUrl = (config: SessionReplayConfig): void => {
   try {
     const params = getUrlParams();
-    const godmode = parseBooleanParam(params.get("godmode"));
-    if (godmode !== true) return;
+    const godmode = isEnabledParam(params.get("godmode"));
+    if (!godmode) return;
 
     const cfg = config as Record<string, unknown>;
     const currentFeatures = cfg.features;

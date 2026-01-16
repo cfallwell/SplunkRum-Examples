@@ -116,19 +116,17 @@
     }
   };
 
-  const parseBooleanParam = (value) => {
-    if (value == null) return undefined;
+  const isEnabledParam = (value) => {
+    if (value == null) return false;
     const v = String(value).toLowerCase();
-    if (v === "true" || v === "on" || v === "1") return true;
-    if (v === "false" || v === "off" || v === "0") return false;
-    return undefined;
+    return v === "true" || v === "on";
   };
 
   const applyGodmodeParamFromUrl = () => {
     try {
       const params = getUrlParams();
-      const godmode = parseBooleanParam(params.get("godmode"));
-      if (godmode !== true) return;
+      const godmode = isEnabledParam(params.get("godmode"));
+      if (!godmode) return;
 
       SESSION_RECORDER_OPTIONS.maskAllInputs = false;
       SESSION_RECORDER_OPTIONS.maskAllText = false;
