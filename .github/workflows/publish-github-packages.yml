@@ -1,11 +1,8 @@
 name: Publish spa-npm to GitHub Packages
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "spa-npm/**"
-      - ".github/workflows/publish-github-packages.yml"
+  release:
+    types: [published]
   workflow_dispatch: {}
 
 permissions:
@@ -40,10 +37,6 @@ jobs:
         working-directory: spa-npm
         run: npm install
 
-      - name: Bump spa-npm version
-        working-directory: spa-npm
-        run: npm version patch -m "chore(spa-npm): bump version to %s"
-
       - name: Build
         working-directory: spa-npm
         run: npm run build
@@ -53,6 +46,3 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npm publish --access public
-
-      - name: Push version bump
-        run: git push --follow-tags
