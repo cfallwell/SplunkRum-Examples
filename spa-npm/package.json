@@ -2,6 +2,7 @@
   "name": "@cfallwell/rumbootstrap",
   "version": "1.1.2",
   "description": "Splunk RUM + Session Replay bootstrap utilities for React SPAs",
+  "changelog": "CHANGELOG.md",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -14,6 +15,7 @@
   },
   "files": [
     "dist",
+    "CHANGELOG.md",
     "README.md",
     "LICENSE"
   ],
